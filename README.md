@@ -1,8 +1,8 @@
 # polars-fastavro
 
-[![build](https://github.com/hafaio/polars-fastavro/actions/workflows/build.yml/badge.svg)](https://github.com/hafaio/polars-fastavro/actions/workflows/build.yml)
+[![build](https://github.com/hafacc/polars-fastavro/actions/workflows/build.yml/badge.svg)](https://github.com/hafacc/polars-fastavro/actions/workflows/build.yml)
 [![pypi](https://img.shields.io/pypi/v/polars-fastavro)](https://pypi.org/project/polars-fastavro/)
-[![docs](https://img.shields.io/badge/api-docs-blue)](https://hafaio.github.io/polars-fastavro)
+[![docs](https://img.shields.io/badge/api-docs-blue)](https://hafa.cc/polars-fastavro)
 
 A polars io-plugin that wraps fastavro
 
