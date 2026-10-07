@@ -1,6 +1,7 @@
 import glob as libglob
 from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
+from itertools import islice
 from os import path
 from pathlib import Path
 from typing import BinaryIO, TypeVar
@@ -181,6 +182,13 @@ def open_sources(
                 for fpath in globbed:
                     with open(fpath, "rb") as fo:
                         yield fo
+            case _ if source.seekable():
+                start = source.tell()
+                try:
+                    yield source
+                finally:
+                    # leave the stream where it was so it can be read again
+                    source.seek(start)
             case _:
                 yield source
 
@@ -305,6 +313,9 @@ def scan_avro(
         records = (rec for reader in readers for rec in reader)
         if singleton:
             records = ({single_col_name: rec} for rec in records)
+        # polars expects the row limit to apply before the predicate
+        if n_rows is not None:
+            records = islice(records, n_rows)
 
         for batch in chunk(records, batch_size or def_batch_size):
             lazy = pl.from_dicts(batch, schema).lazy()  # pyright: ignore[reportArgumentType]
@@ -312,21 +323,9 @@ def scan_avro(
                 lazy = lazy.select(with_columns)  # pyright: ignore[reportUnknownMemberType]
             if predicate is not None:
                 lazy = lazy.filter(predicate)  # pyright: ignore[reportUnknownMemberType]
-            frame = lazy.collect()
-            if n_rows is None:
-                yield frame
-            else:
-                frame = frame[:n_rows]
-                n_rows -= len(frame)
-                yield frame
-                if n_rows == 0:
-                    break
+            yield lazy.collect()
 
-    try:
-        return register_io_source(source_generator, schema=get_schema)
-    except TypeError:  # pragma: no cover
-        eager_schema = get_schema()
-        return register_io_source(source_generator, schema=eager_schema)
+    return register_io_source(source_generator, schema=get_schema)
 
 
 def read_avro(  # noqa: PLR0913

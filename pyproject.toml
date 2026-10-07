@@ -37,6 +37,11 @@ convention = "numpy"
 [tool.pytest.ini_options]
 addopts = "--cov --cov-report term-missing"
 
+[tool.coverage.run]
+# polars runs scan callbacks on its own threads, which the default tracer misses
+core = "sysmon"
+disable_warnings = ["no-sysmon"]
+
 [tool.pyright]
 strict = ["polars_fastavro", "tests"]
 
