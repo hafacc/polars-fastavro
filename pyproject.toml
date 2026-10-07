@@ -1,6 +1,6 @@
 [project]
 name = "polars-fastavro"
-version = "0.6.1"
+version = "0.7.0"
 description = "A polars io-plugin wrapper around fastavro"
 license = "MIT"
 readme = "README.md"
