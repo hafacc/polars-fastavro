@@ -1,8 +1,10 @@
 """Test write functionality."""
 
 from datetime import datetime, timezone
+from decimal import Decimal
 from io import BytesIO
 from pathlib import Path
+from typing import Literal
 
 import polars as pl
 import pytest
@@ -21,11 +23,12 @@ def test_binary_write() -> None:
     assert_frame_equal(frame, duplicate)
 
 
-def test_chunked_binary_write() -> None:
+@pytest.mark.parametrize("batch_size", [None, 1])
+def test_chunked_binary_write(batch_size: int | None) -> None:
     """Test writing to a buffer."""
     buff = BytesIO()
     frame = pl.from_dict({"x": [1, 2]})
-    write_avro(frame, buff, batch_size=1)
+    write_avro(frame, buff, batch_size=batch_size)
     buff.seek(0)
     duplicate = read_avro(buff)
     assert_frame_equal(frame, duplicate)
@@ -142,3 +145,26 @@ def test_invalid_datetime() -> None:
     frame = pl.from_dict({"x": [instant]}, schema={"x": pl.Datetime("us", "GMT")})
     with pytest.raises(Exception, match="unsupported dtype: Datetime"):
         write_avro(frame, buff)
+
+
+def test_decimal_write() -> None:
+    """Test that a Decimal is read back unchanged."""
+    buff = BytesIO()
+    frame = pl.from_dict(
+        {"x": [Decimal("1.23"), None]}, schema={"x": pl.Decimal(10, 2)}
+    )
+    write_avro(frame, buff)
+    buff.seek(0)
+    dup = read_avro(buff)
+    assert_frame_equal(dup, frame)
+
+
+@pytest.mark.parametrize("codec", ["deflate", "bzip2", "xz"])
+def test_codec(codec: Literal["deflate", "bzip2", "xz"]) -> None:
+    """Test writing with codecs that need no extra library."""
+    buff = BytesIO()
+    frame = pl.from_dict({"x": [1, 2, 3]})
+    write_avro(frame, buff, codec=codec)
+    buff.seek(0)
+    duplicate = read_avro(buff)
+    assert_frame_equal(frame, duplicate)

@@ -7,7 +7,7 @@ from typing import BinaryIO, Literal, TypeAlias
 import fastavro
 import polars as pl
 
-AvroSchema: TypeAlias = str | list["AvroSchema"] | dict[str, "AvroSchema"]
+AvroSchema: TypeAlias = str | int | list["AvroSchema"] | dict[str, "AvroSchema"]
 
 
 @dataclass
@@ -58,6 +58,13 @@ class DataTypeFormatter:
                         }
                     case _:
                         raise ValueError(f"unsupported dtype: {dtype}")
+            case pl.Decimal:
+                formatted = {
+                    "type": "bytes",
+                    "logicalType": "decimal",
+                    "precision": dtype.precision or 38,
+                    "scale": dtype.scale,
+                }
             case pl.Int64:
                 formatted = "long"
             case pl.UInt32 if self.promote_ints:
@@ -115,10 +122,12 @@ def write_avro(  # noqa: PLR0913
     frame: pl.DataFrame,
     dest: str | Path | BinaryIO,
     *,
-    batch_size: int | None = None,
+    batch_size: int | None = 32768,
     promote_ints: bool = True,
     promote_array: bool = True,
-    codec: Literal["null", "deflate", "snappy"] = "null",
+    codec: Literal[
+        "null", "deflate", "snappy", "bzip2", "xz", "zstandard", "lz4"
+    ] = "null",
 ) -> None:
     """Write a DataFrame as an avro file.
 
@@ -130,7 +139,7 @@ def write_avro(  # noqa: PLR0913
         many rows at a time.
     promote_ints : Whether to promote ints to a large size that avro supports.
     promote_array : Whether to write Arrays as Lists.
-    codec : Codec for dest.
+    codec : Codec for dest. Some codecs need an extra library installed.
     """
     schema = DataTypeFormatter(
         promote_ints=promote_ints,
@@ -145,13 +154,10 @@ def write_avro(  # noqa: PLR0913
         if batch_size is None:
             frames = [frame]
         else:
-            frames = [
-                frame[i : i + batch_size].rechunk()
-                for i in range(0, len(frame), batch_size)
-            ]
+            frames = (part.rechunk() for part in frame.iter_slices(batch_size))
         fastavro.writer(  # pyright: ignore[reportUnknownMemberType]
             fo,
-            schema,
+            schema,  # pyright: ignore[reportArgumentType]
             (row for frame in frames for row in frame.iter_rows(named=True)),
             codec=codec,
         )

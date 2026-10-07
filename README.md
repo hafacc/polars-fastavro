@@ -24,11 +24,11 @@ write_avro(frame, dest)
    write).
 2. Since this is ultimately converting between avro and arrow, it has no support
    for avro maps or unions (other than null).
-3. Every type is treated as as nullable.
+3. Every type is treated as nullable.
 4. Additionally, some types could in theory be supported but aren't for technical
    reasons. These include uuid and duration.
 5. Timestamp support is limited. local-timestamp-*s are treated as Datetime
    without tz info, while timestamp-*s are treated as UTC Datetime. Writing
-   Datetimes with nano-precision is also not supported.
+   Datetimes with nano-precision or other time zones is also not supported.
 6. This can't read cloud files, as that functionality isn't exposed in python to
    my knowledge.

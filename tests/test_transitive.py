@@ -195,9 +195,7 @@ def test_noncontiguous_chunks(
 @pytest.mark.parametrize(
     "write_func,read_func",
     [
-        pytest.param(
-            pl.DataFrame.write_avro, pl.read_avro, id="polars", marks=pytest.mark.xfail
-        ),
+        pytest.param(pl.DataFrame.write_avro, pl.read_avro, id="polars"),
         pytest.param(write_avro, read_avro, id="fastavro"),
     ],
 )
