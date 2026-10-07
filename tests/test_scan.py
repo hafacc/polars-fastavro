@@ -525,3 +525,60 @@ def test_non_record_schema() -> None:
     frame = read_avro(buff, single_col_name="col")
     expected = pl.from_dict({"col": [3, 7, 4]}, schema={"col": pl.Int32})
     assert_frame_equal(frame, expected)
+
+
+def test_scan_limit_then_filter() -> None:
+    """Test that a row limit ahead of a filter is applied first."""
+    buff = BytesIO()
+    frame = pl.from_dict({"x": [*range(10)]})
+    write_avro(frame, buff)
+    buff.seek(0)
+
+    thresh = 4
+    lazy = scan_avro(buff, batch_size=3).head(6).filter(pl.col("x") > thresh)  # pyright: ignore[reportUnknownMemberType]
+    reference = frame.head(6).filter(pl.col("x") > thresh)  # pyright: ignore[reportUnknownMemberType]
+    assert_frame_equal(lazy.collect(), reference)
+
+
+def test_scan_stream_twice() -> None:
+    """Test that a scanned stream can be collected more than once."""
+    buff = BytesIO()
+    frame = pl.from_dict({"x": [5, 12, 14]})
+    write_avro(frame, buff)
+    buff.seek(0)
+
+    lazy = scan_avro(buff)
+    assert_frame_equal(lazy.collect(), frame)
+    assert_frame_equal(lazy.collect(), frame)
+
+
+class Unseekable(BytesIO):
+    """A stream that can't be rewound."""
+
+    def seekable(self) -> bool:
+        """Report that this can't seek."""
+        return False
+
+
+def test_scan_unseekable() -> None:
+    """Test that a stream that can't seek can still be read."""
+    buff = BytesIO()
+    frame = pl.from_dict({"x": [5, 12, 14]})
+    write_avro(frame, buff)
+    assert_frame_equal(read_avro(Unseekable(buff.getvalue())), frame)
+
+
+def test_scan_stream_position() -> None:
+    """Test that a stream is read from, and left at, its current position."""
+    frame = pl.from_dict({"x": [5, 12, 14]})
+    written = BytesIO()
+    write_avro(frame, written)
+    prefix = b"junk"
+    start = len(prefix)
+    buff = BytesIO(prefix + written.getvalue())
+    buff.seek(start)
+
+    assert_frame_equal(read_avro(buff), frame)
+    assert buff.tell() == start
+    assert_frame_equal(read_avro(buff, n_rows=1), frame.head(1))
+    assert buff.tell() == start
